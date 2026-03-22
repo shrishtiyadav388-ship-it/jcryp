@@ -1,82 +1,81 @@
-~package jcrypt;
+package jcrypt;
 
 import java.io.*;
 
 public class FileProcessor {
-
-    private final CryptoEngine cryptoEngine;
+    CryptoEngine cryptoEngine;
 
     public FileProcessor() {
         this.cryptoEngine = new CryptoEngine();
     }
 
-    /** Read entire file into byte array */
-    public byte[] readFile(String filePath) throws IOException {
-        File file = new File(filePath);
-        if (!file.exists()) throw new FileNotFoundException("File not found: " + filePath);
-        if (!file.isFile()) throw new IOException("Not a file: " + filePath);
+    byte[] readFile(String filePath) throws IOException {
 
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        try (BufferedInputStream bis = new BufferedInputStream(
-                new FileInputStream(file), Constants.BUFFER_SIZE)) {
-            byte[] chunk = new byte[Constants.BUFFER_SIZE];
-            int bytesRead;
-            while ((bytesRead = bis.read(chunk)) != -1) {
-                buffer.write(chunk, 0, bytesRead);
-            }
+        File file = new File(filePath);
+        if (!file.exists()) {
+            throw new FileNotFoundException("file not found: " + filePath);
         }
+        if (!file.isFile()) {
+            throw new IOException("this is not a file: " + filePath);
+        }
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        BufferedInputStream bis = new BufferedInputStream(
+                new FileInputStream(file), Constants.BUFFER_SIZE);
+
+        byte[] chunk = new byte[Constants.BUFFER_SIZE];
+        int bytesRead;
+        while ((bytesRead = bis.read(chunk)) != -1) {
+            buffer.write(chunk, 0, bytesRead);
+        }
+
+        bis.close();
         return buffer.toByteArray();
     }
 
-
-    public void writeFile(String filePath, byte[] data) throws IOException {
-        try (BufferedOutputStream bos = new BufferedOutputStream(
-                new FileOutputStream(filePath), Constants.BUFFER_SIZE)) {
-            bos.write(data);
-        }
+    void writeFile(String filePath, byte[] data) throws IOException {
+        BufferedOutputStream bos = new BufferedOutputStream(
+                new FileOutputStream(filePath), Constants.BUFFER_SIZE);
+        bos.write(data);
+        bos.flush();
+        bos.close();
     }
 
-
     public String encryptFile(String inputPath, String password) throws IOException {
-        Utils.log("FileProcessor", "Reading file: " + inputPath);
+
+        System.out.println("reading file: " + inputPath);
         byte[] data = readFile(inputPath);
-        Utils.log("FileProcessor", "File size: " + Utils.formatSize(data.length));
+        System.out.println("file size: " + data.length + " bytes");
 
-        Utils.log("FileProcessor", "Encrypting...");
+        System.out.println("encrypting...");
         byte[] encrypted = cryptoEngine.encrypt(data, password);
-
         String outputPath = inputPath + Constants.ENCRYPTED_EXTENSION;
         writeFile(outputPath, encrypted);
-        Utils.log("FileProcessor", "Encrypted file saved: " + outputPath
-                + " (" + Utils.formatSize(encrypted.length) + ")");
+
+        System.out.println("encrypted file saved: " + outputPath);
         return outputPath;
     }
 
-
     public String decryptFile(String inputPath, String password)
             throws IOException, WrongPasswordException {
-
         if (!inputPath.endsWith(Constants.ENCRYPTED_EXTENSION)) {
-            throw new IOException("File does not have .jcrypt extension: " + inputPath);
+            throw new IOException("not a .jcrypt file: " + inputPath);
         }
 
-        Utils.log("FileProcessor", "Reading encrypted file: " + inputPath);
+        System.out.println("reading encrypted file: " + inputPath);
         byte[] encryptedData = readFile(inputPath);
 
-        Utils.log("FileProcessor", "Decrypting...");
+        System.out.println("decrypting...");
         byte[] decrypted = cryptoEngine.decrypt(encryptedData, password);
-
-
-        String outputPath = inputPath.substring(0, inputPath.length() - Constants.ENCRYPTED_EXTENSION.length());
-
-    
+        File inputFile = new File(inputPath);
+        String originalName = inputFile.getName()
+                .replace(Constants.ENCRYPTED_EXTENSION, "");
+        String outputPath = inputFile.getParent() + File.separator + originalName;
         if (new File(outputPath).exists()) {
-            outputPath = outputPath + ".decrypted";
+            outputPath = inputFile.getParent() + File.separator + "decrypted_" + originalName;
         }
 
         writeFile(outputPath, decrypted);
-        Utils.log("FileProcessor", "Decrypted file saved: " + outputPath
-                + " (" + Utils.formatSize(decrypted.length) + ")");
+        System.out.println("decrypted file saved: " + outputPath);
         return outputPath;
     }
 }

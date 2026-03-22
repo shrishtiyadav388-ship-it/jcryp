@@ -5,202 +5,150 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class Client {
-
     public static void main(String[] args) {
-
-        System.out.println("\n J-Crypt File Security Tool \n");
-        System.out.println(" Java pbl project ");
+        System.out.println("welcome to jcrypt");
+        System.out.println("file encryption tool");
         System.out.println();
-
         String ip = "localhost";
         if (args.length > 0) {
             ip = args[0];
         }
-
         Scanner sc = new Scanner(System.in);
-        System.out.println();
         while (true) {
-            showMenu();
-            System.out.print("Enter choice: ");
-            String ch = sc.nextLine().trim();
-
-            if (ch.equals("1")) {
-                doOperation(sc, ip, Constants.OP_ENCRYPT);
-            } else if (ch.equals("2")) {
-                doOperation(sc, ip, Constants.OP_DECRYPT);
-            } else if (ch.equals("3")) {
-                System.out.println("Exit");
-                sc.close();
-                System.exit(0);
+            System.out.println();
+            System.out.println("what do you want to do?");
+            System.out.println("1 - encrypt a file");
+            System.out.println("2 - decrypt a file");
+            System.out.println("3 - exit");
+            System.out.print("enter: ");
+            String choice = sc.nextLine();
+            if (choice.equals("1")) {
+                encrypt(sc, ip);
+            } else if (choice.equals("2")) {
+                decrypt(sc, ip);
+            } else if (choice.equals("3")) {
+                System.out.println("bye bye!");
+                break;
             } else {
-                System.out.println("Wrong choice please enter 1, 2 or 3");
+                System.out.println("wrong input try again");
             }
         }
     }
 
-    static void showMenu() {
+    static void encrypt(Scanner sc, String ip) {
 
-        System.out.println("Menu : features select operation to perform");
-
-        System.out.println(" 1. Encrypt file");
-        System.out.println(" 2. Decrypt file");
-        System.out.println(" 3. Exit");
-
-    }
-
-    static void doOperation(Scanner sc, String ip, byte op) {
-
-        if (op == Constants.OP_ENCRYPT) {
-            System.out.println("\n-- ENCRYPT --");
-        } else {
-            System.out.println("\n-- DECRYPT --");
-        }
-
-        System.out.print("Enter file path: ");
-        String path = sc.nextLine().trim();
-
-        path = path.replace("\"", "");
-
+        System.out.print("enter file path: ");
+        String path = sc.nextLine().trim().replace("\"", "");
         File f = new File(path);
-        if (!f.exists() || !f.isFile()) {
-            System.out.println("File not found: " + path);
-            System.out.println();
+        if (!f.exists()) {
+            System.out.println("file not found bro");
             return;
         }
 
-        if (op == Constants.OP_DECRYPT &&
-                !path.endsWith(Constants.ENCRYPTED_EXTENSION)) {
-            System.out.println("Error--select a .jcrypt file for decryption");
-            System.out.println();
-            return;
-        }
-        System.out.print("Enter password: ");
+        System.out.print("enter password (min 8 chars): ");
         String pass = sc.nextLine().trim();
 
-        if (pass.length() == 0 && pass.length() < 8) {
-            System.out.println("Password cannot be empty");
-            System.out.println();
-            return;
-        }
         if (pass.length() < 8) {
-            System.out.println("Password must 8 characters long!");
-            System.out.println();
+            System.out.println("password too short!");
             return;
         }
-
-        if (op == Constants.OP_DECRYPT) {
-            System.out.print("Re-enter password: ");
-            String pass2 = sc.nextLine().trim();
-            if (!pass.equals(pass2)) {
-                System.out.println("Passwords dont match");
-                System.out.println();
-                return;
+        boolean success = sendFile(ip, Constants.OP_ENCRYPT, pass, f);
+        if (success) {
+            System.out.print("do you want to delete original file? (y/n): ");
+            String ans = sc.nextLine().trim();
+            if (ans.equalsIgnoreCase("y")) {
+                if (f.delete()) {
+                    System.out.println("original file deleted!");
+                } else {
+                    System.out.println("could not delete file, please delete manually");
+                }
             }
         }
+    }
 
-        System.out.print("Save folder ");
-        String folder = sc.nextLine().trim();
+    static void decrypt(Scanner sc, String ip) {
 
-        if (folder.length() == 0) {
-            folder = f.getParent();
-            if (folder == null)
-                folder = ".";
-        }
-
-        File saveFolder = new File(folder);
-        if (!saveFolder.exists()) {
-            System.out.println("Folder not found: " + folder);
-            System.out.println();
+        System.out.print("enter .jcrypt file path: ");
+        String path = sc.nextLine().trim().replace("\"", "");
+        if (!path.endsWith(".jcrypt")) {
+            System.out.println("please select a .jcrypt file only");
             return;
         }
 
-        System.out.println("\nConnecting to server...");
-        sendToServer(ip, op, pass, f, folder);
+        File f = new File(path);
+        if (!f.exists()) {
+            System.out.println("file not found");
+            return;
+        }
+
+        System.out.print("enter password: ");
+        String pass = sc.nextLine().trim();
+        System.out.print("confirm password: ");
+        String pass2 = sc.nextLine().trim();
+        if (!pass.equals(pass2)) {
+            System.out.println("passwords dont match!");
+            return;
+        }
+        sendFile(ip, Constants.OP_DECRYPT, pass, f);
     }
 
-    static void sendToServer(String ip, byte op, String pass, File f, String saveFolder) {
+    static boolean sendFile(String ip, byte op, String pass, File f) {
 
         try {
-            Socket socket = new Socket(ip, Constants.PORT);
-            DataOutputStream dout = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
-            DataInputStream din = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-
-            System.out.println("Connected! Sending file...");
-
+            System.out.println("connecting to server...");
+            Socket s = new Socket(ip, Constants.PORT);
+            DataOutputStream dout = new DataOutputStream(s.getOutputStream());
+            DataInputStream din = new DataInputStream(s.getInputStream());
             FileInputStream fis = new FileInputStream(f);
-            byte[] fileData = fis.readAllBytes();
+            byte[] data = fis.readAllBytes();
             fis.close();
 
+            System.out.println("sending " + data.length + " bytes...");
             dout.writeByte(op);
 
-            byte[] passBytes = pass.getBytes();
-            dout.writeInt(passBytes.length);
-            dout.write(passBytes);
+            byte[] pb = pass.getBytes();
+            dout.writeInt(pb.length);
+            dout.write(pb);
 
-            byte[] nameBytes = f.getName().getBytes();
-            dout.writeInt(nameBytes.length);
-            dout.write(nameBytes);
+            byte[] nb = f.getName().getBytes();
+            dout.writeInt(nb.length);
+            dout.write(nb);
 
-            dout.writeLong(fileData.length);
-            dout.write(fileData);
+            dout.writeLong(data.length);
+            dout.write(data);
             dout.flush();
-
-            System.out.println("File sent! Size: " + fileData.length + " bytes");
-            System.out.println("Waiting for server to response--");
-
             byte status = din.readByte();
 
             if (status == Constants.STATUS_OK) {
+                byte[] nameB = new byte[din.readInt()];
+                din.readFully(nameB);
+                String outName = new String(nameB);
 
-                int nlen = din.readInt();
-                byte[] nBytes = new byte[nlen];
-                din.readFully(nBytes);
-                String outName = new String(nBytes);
-
-                long outSize = din.readLong();
-                byte[] outData = new byte[(int) outSize];
+                byte[] outData = new byte[(int) din.readLong()];
                 din.readFully(outData);
-
-                String outPath = saveFolder + File.separator + outName;
-
-                if (new File(outPath).exists()) {
-                    outPath = saveFolder + File.separator + "copy_" + outName;
-                }
-
+                String outPath = f.getParent() + File.separator + outName;
                 FileOutputStream fos = new FileOutputStream(outPath);
                 fos.write(outData);
                 fos.close();
 
-                System.out.println();
-                System.out.println(" File saved at: " + outPath);
-                System.out.println("Size: " + outData.length + " bytes");
+                System.out.println("done! file saved: " + outPath);
+                s.close();
+                return true;
 
             } else if (status == Constants.STATUS_WRONG_PASSWORD) {
-
-                int mlen = din.readInt();
-                byte[] mBytes = new byte[mlen];
-                din.readFully(mBytes);
-                System.out.println("Wrong password! " + new String(mBytes));
-
+                System.out.println("wrong password!");
             } else {
-
-                int mlen = din.readInt();
-                byte[] mBytes = new byte[mlen];
-                din.readFully(mBytes);
-                System.out.println("Server error: " + new String(mBytes));
+                System.out.println("something went wrong on server");
             }
 
-            din.close();
-            dout.close();
-            socket.close();
+            s.close();
 
         } catch (java.net.ConnectException e) {
-            System.out.println("Cannot connect to server " + ip + ":" + Constants.PORT);
-            System.out.println("Make sure server is running first!");
+            System.out.println("server not running! start server first");
         } catch (IOException e) {
-            System.out.println("Error: " + e.getMessage());
+            System.out.println("error: " + e.getMessage());
         }
 
-        System.out.println();
+        return false;
     }
 }
